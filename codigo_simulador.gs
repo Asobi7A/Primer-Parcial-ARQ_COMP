@@ -218,3 +218,40 @@ function ejecutarExecute() {
   hoja.getRange("G9").setValue("Completado").setFontColor("#777777").setFontWeight("normal");
   agregarLog("--- ESPERANDO SIGUIENTE CICLO ---");
 }
+// =========================================================
+// CONTROLES DE LA CPU - ISSUE 4
+// =========================================================
+
+// Botón RESET: Restaura los registros y el sistema a cero
+function resetCPU() {
+  var hoja = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  
+  // Restaurar registros a 00
+  setRegistro("C6", "00"); // PC
+  setRegistro("C7", "00"); // MAR
+  setRegistro("C8", "00"); // MDR
+  setRegistro("C9", "00"); // IR
+  setRegistro("C10", "00"); // AX
+  setRegistro("C11", "00"); // BX
+  
+  // Restaurar Banderas
+  hoja.getRange("C14:C16").setValue("0"); // ZF, CF, SF
+  
+  // Limpiar indicadores visuales
+  hoja.getRange("G6:G9").setValue("Pendiente").setFontColor("#777777").setFontWeight("normal");
+  
+  agregarLog("=== SISTEMA REINICIADO (RESET) ===");
+}
+
+// Botón LOAD: Carga un mini-programa automáticamente para no escribir a mano
+function loadProgram() {
+  resetCPU(); // Limpia antes de cargar
+  
+  // Escribimos 3 instrucciones "A5" seguidas y luego un "00"
+  writeRAM("00", "A5"); // INC AX
+  writeRAM("01", "A5"); // INC AX
+  writeRAM("02", "A5"); // INC AX
+  writeRAM("03", "00"); // NOP / HLT
+  
+  agregarLog("Programa de prueba cargado en RAM.");
+}
