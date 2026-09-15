@@ -257,17 +257,24 @@ function resetCPU() {
   agregarLog("=== SISTEMA REINICIADO (CPU Y RAM A CERO) ===");
 }
 
-// Botón LOAD: Carga un mini-programa automáticamente para no escribir a mano
+// Botón LOAD: Carga el programa demostrativo obligatorio (Bucle / Control de Flujo)
 function loadProgram() {
-  resetCPU(); // Limpia antes de cargar
+  resetCPU(); 
+  var hoja = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
   
-  // Escribimos 3 instrucciones "A5" seguidas y luego un "00"
-  writeRAM("00", "A5"); // INC AX
-  writeRAM("01", "A5"); // INC AX
-  writeRAM("02", "A5"); // INC AX
-  writeRAM("03", "00"); // NOP / HLT
+  // Pre-cargamos un límite en el registro BX (ej. contar hasta 3)
+  setRegistro("C11", "03"); // BX = 3
   
-  agregarLog("Programa de prueba cargado en RAM.");
+  // INYECCIÓN DEL PROGRAMA EN LA MEMORIA RAM
+  writeRAM("00", "3B"); // CMP AX, BX  (¿Llegó AX a 3?)
+  writeRAM("01", "E1"); // JZ 06       (Si es igual, ZF=1, salta a la dirección 06)
+  writeRAM("02", "06"); // [Operando de JZ: Dirección 06]
+  writeRAM("03", "A5"); // INC AX      (Si no es igual, suma 1 a AX)
+  writeRAM("04", "E0"); // JMP 00      (Salto incondicional de vuelta al inicio)
+  writeRAM("05", "00"); // [Operando de JMP: Dirección 00]
+  writeRAM("06", "00"); // HLT         (Fin del programa)
+  
+  agregarLog("Programa cargado: Bucle condicional (Cuenta hasta 3).");
 }
 // =========================================================
 // MODO PASO A PASO (STEP) Y CONTINUO (RUN) - ISSUE 4
