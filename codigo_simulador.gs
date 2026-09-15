@@ -152,3 +152,69 @@ function ejecutarFetch() {
   // Apagar indicador de fase
   hoja.getRange("G6").setValue("Completado").setFontColor("#777777").setFontWeight("normal");
 }
+
+// --- FASE 2: DECODE (Decodificación) ---
+function ejecutarDecode() {
+  var hoja = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  
+  // Encender indicador de fase
+  hoja.getRange("G7").setValue("ACTIVO 🟢").setFontColor("#00ff00").setFontWeight("bold");
+  agregarLog("Iniciando fase DECODE...");
+  
+  var ir = getRegistro("C9");
+  var instruccionDecodificada = "";
+  
+  // Mini-diccionario (El comienzo de nuestra ISA)
+  switch(ir) {
+    case "A5": 
+      instruccionDecodificada = "INC AX (Incrementar Acumulador)"; 
+      break;
+    case "00": 
+      instruccionDecodificada = "NOP (Ninguna operación)"; 
+      break;
+    default: 
+      instruccionDecodificada = "Instrucción desconocida";
+  }
+  
+  agregarLog("Unidad de Control: Código " + ir + " interpretado como -> " + instruccionDecodificada);
+  
+  // Apagar indicador
+  hoja.getRange("G7").setValue("Completado").setFontColor("#777777").setFontWeight("normal");
+}
+
+// --- FASE 3 y 4: EXECUTE & STORE (Ejecución y Almacenamiento) ---
+function ejecutarExecute() {
+  var hoja = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  
+  // Encender indicador de fase Execute
+  hoja.getRange("G8").setValue("ACTIVO 🟢").setFontColor("#00ff00").setFontWeight("bold");
+  agregarLog("Iniciando fase EXECUTE y ALU...");
+  
+  var ir = getRegistro("C9");
+  
+  if (ir === "A5") { 
+    // Lógica para INC AX
+    var axStr = getRegistro("C10"); // Lee AX actual
+    var ax = parseInt(axStr, 16);
+    
+    ax = (ax + 1) % 256; // La ALU suma 1 (evitando desbordamiento)
+    
+    // FASE 4: STORE (Guardar el resultado)
+    hoja.getRange("G9").setValue("ACTIVO 🟢").setFontColor("#00ff00").setFontWeight("bold");
+    setRegistro("C10", ax); // Escribe el nuevo valor en AX
+    
+    // Actualización de Banderas (Zero Flag)
+    var zf = (ax === 0) ? "1" : "0";
+    hoja.getRange("C14").setValue(zf); 
+    
+    agregarLog("ALU: Se sumó 1 a AX. Nuevo valor = " + ax.toString(16).toUpperCase());
+    agregarLog("STORE: Banderas actualizadas (ZF=" + zf + "). Fin de instrucción.");
+  } else {
+    agregarLog("ALU: Operación ignorada o no implementada.");
+  }
+  
+  // Apagar indicadores
+  hoja.getRange("G8").setValue("Completado").setFontColor("#777777").setFontWeight("normal");
+  hoja.getRange("G9").setValue("Completado").setFontColor("#777777").setFontWeight("normal");
+  agregarLog("--- ESPERANDO SIGUIENTE CICLO ---");
+}
