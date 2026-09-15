@@ -222,7 +222,8 @@ function ejecutarExecute() {
 // CONTROLES DE LA CPU - ISSUE 4
 // =========================================================
 
-// Botón RESET: Restaura los registros y el sistema a cero
+
+// Botón RESET: Restaura los registros, banderas y la Memoria RAM a cero
 function resetCPU() {
   var hoja = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
   
@@ -237,10 +238,13 @@ function resetCPU() {
   // Restaurar Banderas
   hoja.getRange("C14:C16").setValue("0"); // ZF, CF, SF
   
-  // Limpiar indicadores visuales
+  // Limpiar indicadores visuales del reloj
   hoja.getRange("G6:G9").setValue("Pendiente").setFontColor("#777777").setFontWeight("normal");
   
-  agregarLog("=== SISTEMA REINICIADO (RESET) ===");
+  // NUEVO: Limpiar Memoria RAM (Rellena todo el mapa con "00")
+  hoja.getRange("J7:Y22").setValue("00");
+  
+  agregarLog("=== SISTEMA REINICIADO (CPU Y RAM A CERO) ===");
 }
 
 // Botón LOAD: Carga un mini-programa automáticamente para no escribir a mano
@@ -254,4 +258,58 @@ function loadProgram() {
   writeRAM("03", "00"); // NOP / HLT
   
   agregarLog("Programa de prueba cargado en RAM.");
+}
+// =========================================================
+// MODO PASO A PASO (STEP) Y CONTINUO (RUN) - ISSUE 4
+// =========================================================
+
+// Función auxiliar para reiniciar los textos de las fases
+function resetFasesVisuales() {
+  var hoja = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  hoja.getRange("G6:G9").setValue("Pendiente").setFontColor("#777777").setFontWeight("normal");
+}
+
+// Botón STEP: Avanza exactamente una fase del ciclo a la vez
+function ejecutarStep() {
+  var hoja = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  
+  var estadoFetch = hoja.getRange("G6").getValue();
+  var estadoDecode = hoja.getRange("G7").getValue();
+  var estadoExecute = hoja.getRange("G8").getValue();
+  
+  // Máquina de estados simple leyendo el panel central
+  if (estadoFetch === "Pendiente") {
+    ejecutarFetch();
+  } else if (estadoFetch === "Completado" && estadoDecode === "Pendiente") {
+    ejecutarDecode();
+  } else if (estadoDecode === "Completado" && estadoExecute === "Pendiente") {
+    ejecutarExecute();
+  } else if (estadoExecute === "Completado") {
+    // Si ya terminó el ciclo anterior, reinicia las luces y empieza el nuevo Fetch
+    resetFasesVisuales();
+    ejecutarFetch();
+  }
+}
+
+// Botón RUN: Ejecuta ciclos completos de forma automática
+function ejecutarRun() {
+  var hoja = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var velocidad = 800; // Retardo en milisegundos entre fases
+  
+  agregarLog(">>> INICIANDO MODO CONTINUO (RUN) <<<");
+  
+  // Bucle de ejecución (limitado a 10 instrucciones por seguridad para no colgar Excel/Sheets)
+  for (var i = 0; i < 10; i++) {
+    var ir = getRegistro("C9");
+    
+    // Si encuentra la instrucción HLT (00), detiene el reloj
+    if (ir === "00" && hoja.getRange("G6").getValue() === "Completado") {
+      agregarLog("HLT detectado. Reloj detenido.");
+      break; 
+    }
+    
+    ejecutarStep();
+    SpreadsheetApp.flush(); // Actualiza la pantalla
+    Utilities.sleep(velocidad); // Aplica el delay ajustable exigido
+  }
 }
