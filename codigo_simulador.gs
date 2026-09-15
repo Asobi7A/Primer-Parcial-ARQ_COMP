@@ -291,25 +291,48 @@ function ejecutarStep() {
   }
 }
 
-// Botón RUN: Ejecuta ciclos completos de forma automática
+// Botón RUN: Ejecuta ciclos completos de forma automática (Actualizado con sensor de pausa)
 function ejecutarRun() {
   var hoja = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  var velocidad = 800; // Retardo en milisegundos entre fases
+  var velocidad = 800; // Retardo en milisegundos
+  
+  // Escribimos la etiqueta de estado en la celda G10
+  hoja.getRange("F10").setValue("ESTADO:").setFontColor("white").setFontWeight("bold").setHorizontalAlignment("right");
+  hoja.getRange("G10").setValue("RUNNING").setFontColor("#00ff00").setFontWeight("bold");
   
   agregarLog(">>> INICIANDO MODO CONTINUO (RUN) <<<");
   
-  // Bucle de ejecución (limitado a 10 instrucciones por seguridad para no colgar Excel/Sheets)
-  for (var i = 0; i < 10; i++) {
+  // Aumentamos el límite a 20 instrucciones, pero con freno de seguridad
+  for (var i = 0; i < 20; i++) {
+    
+    // SENSOR DE PAUSA: El procesador lee si tocaste el botón PAUSE
+    var estado = hoja.getRange("G10").getValue();
+    if (estado === "PAUSADO") {
+      agregarLog("⏸️ Reloj pausado por el usuario.");
+      break; // Rompe el bucle y se detiene
+    }
+    
     var ir = getRegistro("C9");
     
-    // Si encuentra la instrucción HLT (00), detiene el reloj
+    // SENSOR DE PARADA (HLT)
     if (ir === "00" && hoja.getRange("G6").getValue() === "Completado") {
       agregarLog("HLT detectado. Reloj detenido.");
       break; 
     }
     
     ejecutarStep();
-    SpreadsheetApp.flush(); // Actualiza la pantalla
-    Utilities.sleep(velocidad); // Aplica el delay ajustable exigido
+    SpreadsheetApp.flush(); 
+    Utilities.sleep(velocidad); 
   }
+  
+  // Al terminar o pausar, actualiza el estado
+  if (hoja.getRange("G10").getValue() !== "PAUSADO") {
+    hoja.getRange("G10").setValue("DETENIDO").setFontColor("#ff0000");
+  }
+}
+
+// Botón PAUSE: Activa la bandera de pausa para que el ciclo RUN se detenga
+function pausarCPU() {
+  var hoja = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  hoja.getRange("G10").setValue("PAUSADO").setFontColor("#ff9900").setFontWeight("bold");
 }
