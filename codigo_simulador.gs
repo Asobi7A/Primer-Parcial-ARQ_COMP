@@ -1,80 +1,71 @@
 /**
- * ISSUE 1: ARQUITECTURA DE MEMORIA PRINCIPAL Y SUBRUTINAS
+ * ISSUE 2: INTERFAZ GAMIFICADA - REGISTROS, BANDERAS Y MEMORIA
  */
 
-function inicializarMemoria() {
+function inicializarJuegoCPU() {
   var hoja = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
   hoja.clear();
+  hoja.setHiddenGridlines(true); // <--- Línea corregida
+  hoja.getRange("A1:Z50").setBackground("#1e1e1e"); // Fondo oscuro general
 
-  // --- 1. MATRIZ DE MEMORIA (16x16) ---
-  hoja.getRange("B2:R2").merge().setValue("MEMORIA PRINCIPAL (RAM 256 Bytes)").setFontWeight("bold").setBackground("#1c4587").setFontColor("white").setHorizontalAlignment("center");
+  // --- TÍTULO Y CONTROLES ---
+  hoja.getRange("B2:X3").merge().setValue("⚡ SIMULADOR CPU x86 - ARQUITECTURA DE 8 BITS ⚡")
+    .setFontWeight("bold").setFontSize(16).setFontColor("#00ffcc")
+    .setHorizontalAlignment("center").setVerticalAlignment("middle");
+  
+  // --- PANEL IZQUIERDO: HUD DE LA CPU (Registros) ---
+  hoja.getRange("B5:E5").merge().setValue("💻 REGISTROS DE LA CPU")
+    .setBackground("#3a0088").setFontColor("white").setFontWeight("bold").setHorizontalAlignment("center");
+  
+  var etiquetasCPU = [
+    ["PC (Program Counter)", "00", "Apunta a RAM"],
+    ["MAR (Memory Address)", "00", "Bus de Direcciones"],
+    ["MDR (Memory Data)", "00", "Bus de Datos"],
+    ["IR (Instruction Reg.)", "00", "Opcode Actual"],
+    ["AX (Acumulador)", "00", "Propósito General"],
+    ["BX (Registro Base)", "00", "Propósito General"]
+  ];
+  hoja.getRange("B6:D11").setValues(etiquetasCPU).setFontColor("white").setBorder(true, true, true, true, true, true, "#555555", null);
+  hoja.getRange("C6:C11").setBackground("#000000").setFontColor("#00ffcc").setFontWeight("bold").setHorizontalAlignment("center").setFontFamily("Courier New");
+
+  // Banderas (Flags)
+  hoja.getRange("B13:D13").merge().setValue("🚩 BANDERAS DE ESTADO (FLAGS)")
+    .setBackground("#880000").setFontColor("white").setFontWeight("bold").setHorizontalAlignment("center");
+  var banderas = [["ZF (Zero)", "0"], ["CF (Carry)", "0"], ["SF (Sign)", "0"]];
+  hoja.getRange("B14:C16").setValues(banderas).setFontColor("white").setBorder(true, true, true, true, true, true, "#555555", null);
+  hoja.getRange("C14:C16").setBackground("#000000").setFontColor("#ff0055").setFontWeight("bold").setHorizontalAlignment("center");
+
+  // --- PANEL CENTRAL: CICLO DE INSTRUCCIÓN ---
+  hoja.getRange("F5:G5").merge().setValue("🔄 CICLO DE RELOJ").setBackground("#005588").setFontColor("white").setFontWeight("bold").setHorizontalAlignment("center");
+  var fases = [
+    ["1. FETCH", "Pendiente"],
+    ["2. DECODE", "Pendiente"],
+    ["3. EXECUTE", "Pendiente"],
+    ["4. STORE", "Pendiente"]
+  ];
+  hoja.getRange("F6:G9").setValues(fases).setFontColor("white").setBorder(true, true, true, true, true, true, "#555555", null);
+  hoja.getRange("G6:G9").setFontColor("#777777").setHorizontalAlignment("center"); 
+
+  // --- PANEL DERECHO: MEMORIA RAM (El Mapa) ---
+  hoja.getRange("I5:Y5").merge().setValue("💾 MEMORIA PRINCIPAL (RAM 256 Bytes)")
+    .setBackground("#006622").setFontColor("white").setFontWeight("bold").setHorizontalAlignment("center");
   
   var columnas = [["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F"]];
-  hoja.getRange("C3:R3").setValues(columnas).setBackground("#4a86e8").setFontColor("white").setHorizontalAlignment("center").setFontWeight("bold");
+  hoja.getRange("J6:Y6").setValues(columnas).setBackground("#222222").setFontColor("#00ffcc").setHorizontalAlignment("center").setFontWeight("bold");
 
   for (var i = 0; i < 16; i++) {
     var filaHex = i.toString(16).toUpperCase() + "0";
-    hoja.getRange(4 + i, 2).setValue(filaHex).setBackground("#4a86e8").setFontColor("white").setHorizontalAlignment("center").setFontWeight("bold");
-    
+    hoja.getRange(7 + i, 9).setValue(filaHex).setBackground("#222222").setFontColor("#00ffcc").setHorizontalAlignment("center").setFontWeight("bold");
     for (var j = 0; j < 16; j++) {
-      // Inicializa en "00" (8 bits)
-      hoja.getRange(4 + i, 3 + j).setValue("00").setHorizontalAlignment("center").setFontFamily("Courier New");
+      hoja.getRange(7 + i, 10 + j).setValue("00").setBackground("#111111").setFontColor("white").setHorizontalAlignment("center").setFontFamily("Courier New");
     }
   }
-  
-  hoja.getRange("B3:R19").setBorder(true, true, true, true, true, true);
-  hoja.setColumnWidths(3, 16, 40);
+  hoja.getRange("I6:Y22").setBorder(true, true, true, true, true, true, "#333333", null);
+  hoja.setColumnWidths(10, 16, 35); 
 
-  // --- 2. INSPECTOR Y SEGMENTACIÓN ---
-  hoja.getRange("T3:U3").merge().setValue("INSPECTOR DE MEMORIA").setBackground("#e69138").setFontColor("white").setFontWeight("bold").setHorizontalAlignment("center");
-  
-  var etiquetasInspector = [
-    ["Dirección Activa:", ""],
-    ["Hexadecimal (8 bits):", ""],
-    ["Binario:", ""],
-    ["Decimal:", ""]
-  ];
-  hoja.getRange("T4:U7").setValues(etiquetasInspector).setBorder(true, true, true, true, true, true);
-  hoja.getRange("T4:T7").setFontWeight("bold").setBackground("#fce5cd");
-  
-  // Segmentación visual de Código y Datos
-  hoja.getRange("T9").setValue("Segmento de Código: 00h - 7Fh").setBackground("#d9ead3").setFontWeight("bold");
-  hoja.getRange("T10").setValue("Segmento de Datos: 80h - FFh").setBackground("#cfe2f3").setFontWeight("bold");
-  hoja.autoResizeColumn(20);
-}
-
-// --- 3. SUBRUTINAS PRIMITIVAS ---
-
-function writeRAM(direccionHex, valorHex) {
-  var hoja = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  var decDir = parseInt(direccionHex, 16);
-  var fila = Math.floor(decDir / 16) + 4;
-  var col = (decDir % 16) + 3;
-  
-  var valorFormateado = ("00" + valorHex.toString(16).toUpperCase()).slice(-2);
-  hoja.getRange(fila, col).setValue(valorFormateado);
-  
-  actualizarInspector(direccionHex, valorFormateado);
-}
-
-function readRAM(direccionHex) {
-  var hoja = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  var decDir = parseInt(direccionHex, 16);
-  var fila = Math.floor(decDir / 16) + 4;
-  var col = (decDir % 16) + 3;
-  
-  var valor = hoja.getRange(fila, col).getValue();
-  actualizarInspector(direccionHex, valor.toString());
-  return valor;
-}
-
-function actualizarInspector(direccionHex, valorHex) {
-  var hoja = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  var valorDec = parseInt(valorHex, 16);
-  var valorBin = ("00000000" + valorDec.toString(2)).slice(-8);
-  
-  hoja.getRange("U4").setValue(direccionHex.toUpperCase());
-  hoja.getRange("U5").setValue(valorHex.toUpperCase());
-  hoja.getRange("U6").setValue(valorBin);
-  hoja.getRange("U7").setValue(valorDec);
+  // --- PANEL INFERIOR: LOG DE MICRO-OPERACIONES ---
+  hoja.getRange("B18:G18").merge().setValue("📜 LOG DE MICRO-OPERACIONES")
+    .setBackground("#333333").setFontColor("white").setFontWeight("bold").setHorizontalAlignment("center");
+  hoja.getRange("B19:G22").merge().setBackground("#000000").setFontColor("#00ff00").setFontFamily("Courier New").setVerticalAlignment("top");
+  hoja.getRange("B19").setValue("> Sistema inicializado...\n> Esperando cargar programa...");
 }
