@@ -120,43 +120,62 @@ function agregarLog(mensaje) {
   Utilities.sleep(500); // Pausa de medio segundo para ver la animación
 }
 
+// =========================================================
+// INTERFAZ DIDÁCTICA: COMPONENTE ACTIVO
+// =========================================================
+function mostrarComponente(nombre, accion) {
+  var hoja = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  
+  // Dibuja el panel debajo del reloj
+  hoja.getRange("F12:G12").merge().setValue("⚙️ COMPONENTE ACTIVO")
+    .setBackground("#cc6600").setFontColor("white").setFontWeight("bold").setHorizontalAlignment("center");
+  
+  hoja.getRange("F13:G13").merge().setValue(nombre)
+    .setBackground("#000000").setFontColor("#00ffcc").setFontWeight("bold").setHorizontalAlignment("center").setFontSize(10);
+    
+  hoja.getRange("F14:G15").merge().setValue(accion)
+    .setBackground("#1a1a1a").setFontColor("#dddddd").setFontSize(9).setWrap(true).setVerticalAlignment("top");
+}
+
+// =========================================================
+// LÓGICA DE LA CPU (ACTUALIZADA CON PANEL DIDÁCTICO)
+// =========================================================
+
 // --- FASE 1: FETCH (Búsqueda) ---
 function ejecutarFetch() {
   var hoja = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  
-  // 1. Efecto visual: Encender panel central
   hoja.getRange("G6").setValue("ACTIVO 🟢").setFontColor("#00ff00").setFontWeight("bold");
+  
+  // Mostrar componente
+  mostrarComponente("BUS Y MEMORIA", "Transfiriendo dirección del PC al MAR. Leyendo RAM hacia el MDR y pasando instrucción al IR.");
   agregarLog("Iniciando fase FETCH...");
   
-  // 2. MAR <- PC
   var pc = getRegistro("C6"); 
   setRegistro("C7", pc); 
   agregarLog("MAR <- PC (Apunta a la dirección " + pc + ")");
   
-  // 3. MDR <- RAM[MAR]
   var instruccion = readRAM(pc); 
   setRegistro("C8", instruccion);
   agregarLog("MDR <- RAM[" + pc + "] (Dato extraído: " + instruccion + ")");
   
-  // 4. IR <- MDR
   setRegistro("C9", instruccion);
   agregarLog("IR <- MDR (Instrucción " + instruccion + " lista)");
   
-  // 5. PC <- PC + 1
   var pcDec = parseInt(pc, 16);
   pcDec = (pcDec + 1) % 256; 
-  var pcNuevoHex = pcDec.toString(16).toUpperCase();
-  setRegistro("C6", pcNuevoHex);
-  agregarLog("PC incrementado a " + pcNuevoHex);
+  setRegistro("C6", pcDec.toString(16).toUpperCase());
+  agregarLog("PC incrementado a " + pcDec.toString(16).toUpperCase());
   
-  // Apagar indicador de fase
   hoja.getRange("G6").setValue("Completado").setFontColor("#777777").setFontWeight("normal");
 }
 
-// --- FASE 2: DECODE (Decodificación de la ISA) ---
+// --- FASE 2: DECODE (Decodificación) ---
 function ejecutarDecode() {
   var hoja = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
   hoja.getRange("G7").setValue("ACTIVO 🟢").setFontColor("#00ff00").setFontWeight("bold");
+  
+  // Mostrar componente
+  mostrarComponente("UNIDAD DE CONTROL", "El decodificador analiza el Opcode en el registro IR para coordinar las señales del procesador.");
   
   var ir = getRegistro("C9");
   var instruccion = "";
@@ -177,19 +196,28 @@ function ejecutarDecode() {
   hoja.getRange("G7").setValue("Completado").setFontColor("#777777").setFontWeight("normal");
 }
 
-// --- FASE 3 y 4: EXECUTE & STORE (ALU y Control de Flujo) ---
+// --- FASE 3 y 4: EXECUTE & STORE (Ejecución) ---
 function ejecutarExecute() {
   var hoja = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
   hoja.getRange("G8").setValue("ACTIVO 🟢").setFontColor("#00ff00").setFontWeight("bold");
   hoja.getRange("G9").setValue("ACTIVO 🟢").setFontColor("#00ff00").setFontWeight("bold");
   
   var ir = getRegistro("C9");
+  
+  // Mostrar componente según el tipo de instrucción
+  if (["A5", "01", "02", "8B", "3B"].includes(ir)) {
+    mostrarComponente("ALU (U. Aritmética)", "Procesando operaciones matemáticas o comparaciones lógicas y actualizando las Banderas (Flags).");
+  } else if (["E0", "E1"].includes(ir)) {
+    mostrarComponente("UNIDAD DE CONTROL", "Evaluando condiciones de banderas y modificando el PC para realizar un salto de flujo.");
+  } else if (ir === "00") {
+    mostrarComponente("RELOJ DEL SISTEMA", "Señal de parada (HLT) procesada. Cortando ciclos de reloj.");
+  }
+  
   var ax = parseInt(getRegistro("C10"), 16);
   var bx = parseInt(getRegistro("C11"), 16);
-  var pc = getRegistro("C6"); // PC actual (apunta al operando del salto)
+  var pc = getRegistro("C6"); 
   var resultado = ax;
   
-  // Lógica Matemática y Saltos
   if (["A5", "01", "02", "8B"].includes(ir)) {
     if (ir === "A5") resultado = (ax + 1) % 256;
     if (ir === "01") resultado = (ax + bx) % 256;
@@ -201,25 +229,22 @@ function ejecutarExecute() {
     agregarLog("ALU Store: Nuevo AX = " + resultado.toString(16).toUpperCase());
     
   } else if (ir === "3B") { 
-    hoja.getRange("C14").setValue((ax === bx) ? "1" : "0"); // ZF
-    hoja.getRange("C16").setValue((ax < bx) ? "1" : "0");   // SF
+    hoja.getRange("C14").setValue((ax === bx) ? "1" : "0"); 
+    hoja.getRange("C16").setValue((ax < bx) ? "1" : "0");   
     agregarLog("ALU: Comparación ejecutada (ZF=" + hoja.getRange("C14").getValue() + ")");
     
   } else if (ir === "E0") { 
-    // JMP: Salto incondicional
     var destino = readRAM(pc); 
-    setRegistro("C6", destino); // El PC salta a la nueva dirección
+    setRegistro("C6", destino); 
     agregarLog("JMP: Saltando a la dirección " + destino);
     
   } else if (ir === "E1") {
-    // JZ: Salto condicional
     var zf = hoja.getRange("C14").getValue().toString();
     var destino = readRAM(pc);
     if (zf === "1") {
       setRegistro("C6", destino);
       agregarLog("JZ: Salto tomado hacia " + destino + " (ZF=1)");
     } else {
-      // Ignora el salto, pero debe avanzar el PC para saltarse el operando
       var pcNext = (parseInt(pc, 16) + 1) % 256;
       setRegistro("C6", pcNext.toString(16).toUpperCase());
       agregarLog("JZ: Salto ignorado (ZF=0)");
