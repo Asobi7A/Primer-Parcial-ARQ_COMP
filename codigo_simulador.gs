@@ -161,14 +161,15 @@ function ejecutarDecode() {
   var ir = getRegistro("C9");
   var instruccion = "";
   
-  // Diccionario de Arquitectura de Instrucciones (ISA)
   switch(ir) {
     case "00": instruccion = "HLT (Detener Reloj)"; break;
     case "A5": instruccion = "INC AX (Sumar 1 a AX)"; break;
     case "01": instruccion = "ADD AX, BX (AX <- AX + BX)"; break;
     case "02": instruccion = "SUB AX, BX (AX <- AX - BX)"; break;
     case "8B": instruccion = "MOV AX, BX (Copiar BX en AX)"; break;
-    case "3B": instruccion = "CMP AX, BX (Comparar y fijar Banderas)"; break;
+    case "3B": instruccion = "CMP AX, BX (Comparar)"; break;
+    case "E0": instruccion = "JMP (Salto Incondicional)"; break;
+    case "E1": instruccion = "JZ (Salto si Cero / ZF=1)"; break;
     default: instruccion = "Instrucción desconocida";
   }
   
@@ -176,7 +177,7 @@ function ejecutarDecode() {
   hoja.getRange("G7").setValue("Completado").setFontColor("#777777").setFontWeight("normal");
 }
 
-// --- FASE 3 y 4: EXECUTE & STORE (ALU) ---
+// --- FASE 3 y 4: EXECUTE & STORE (ALU y Control de Flujo) ---
 function ejecutarExecute() {
   var hoja = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
   hoja.getRange("G8").setValue("ACTIVO 🟢").setFontColor("#00ff00").setFontWeight("bold");
@@ -185,24 +186,44 @@ function ejecutarExecute() {
   var ir = getRegistro("C9");
   var ax = parseInt(getRegistro("C10"), 16);
   var bx = parseInt(getRegistro("C11"), 16);
+  var pc = getRegistro("C6"); // PC actual (apunta al operando del salto)
   var resultado = ax;
   
-  // Lógica Matemática de la ALU
-  if (ir === "A5") { resultado = (ax + 1) % 256; } 
-  else if (ir === "01") { resultado = (ax + bx) % 256; }
-  else if (ir === "02") { resultado = (ax - bx + 256) % 256; }
-  else if (ir === "8B") { resultado = bx; }
-  
-  // FASE 4: STORE (Almacenamiento)
+  // Lógica Matemática y Saltos
   if (["A5", "01", "02", "8B"].includes(ir)) {
+    if (ir === "A5") resultado = (ax + 1) % 256;
+    if (ir === "01") resultado = (ax + bx) % 256;
+    if (ir === "02") resultado = (ax - bx + 256) % 256;
+    if (ir === "8B") resultado = bx;
+    
     setRegistro("C10", resultado);
-    hoja.getRange("C14").setValue((resultado === 0) ? "1" : "0"); // ZF (Zero Flag)
+    hoja.getRange("C14").setValue((resultado === 0) ? "1" : "0"); 
     agregarLog("ALU Store: Nuevo AX = " + resultado.toString(16).toUpperCase());
+    
   } else if (ir === "3B") { 
-    // Comparación lógica (CMP)
     hoja.getRange("C14").setValue((ax === bx) ? "1" : "0"); // ZF
     hoja.getRange("C16").setValue((ax < bx) ? "1" : "0");   // SF
-    agregarLog("ALU: Comparación ejecutada (ZF y SF actualizadas)");
+    agregarLog("ALU: Comparación ejecutada (ZF=" + hoja.getRange("C14").getValue() + ")");
+    
+  } else if (ir === "E0") { 
+    // JMP: Salto incondicional
+    var destino = readRAM(pc); 
+    setRegistro("C6", destino); // El PC salta a la nueva dirección
+    agregarLog("JMP: Saltando a la dirección " + destino);
+    
+  } else if (ir === "E1") {
+    // JZ: Salto condicional
+    var zf = hoja.getRange("C14").getValue().toString();
+    var destino = readRAM(pc);
+    if (zf === "1") {
+      setRegistro("C6", destino);
+      agregarLog("JZ: Salto tomado hacia " + destino + " (ZF=1)");
+    } else {
+      // Ignora el salto, pero debe avanzar el PC para saltarse el operando
+      var pcNext = (parseInt(pc, 16) + 1) % 256;
+      setRegistro("C6", pcNext.toString(16).toUpperCase());
+      agregarLog("JZ: Salto ignorado (ZF=0)");
+    }
   }
   
   hoja.getRange("G8:G9").setValue("Completado").setFontColor("#777777").setFontWeight("normal");
