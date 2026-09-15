@@ -153,70 +153,59 @@ function ejecutarFetch() {
   hoja.getRange("G6").setValue("Completado").setFontColor("#777777").setFontWeight("normal");
 }
 
-// --- FASE 2: DECODE (Decodificación) ---
+// --- FASE 2: DECODE (Decodificación de la ISA) ---
 function ejecutarDecode() {
   var hoja = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  
-  // Encender indicador de fase
   hoja.getRange("G7").setValue("ACTIVO 🟢").setFontColor("#00ff00").setFontWeight("bold");
-  agregarLog("Iniciando fase DECODE...");
   
   var ir = getRegistro("C9");
-  var instruccionDecodificada = "";
+  var instruccion = "";
   
-  // Mini-diccionario (El comienzo de nuestra ISA)
+  // Diccionario de Arquitectura de Instrucciones (ISA)
   switch(ir) {
-    case "A5": 
-      instruccionDecodificada = "INC AX (Incrementar Acumulador)"; 
-      break;
-    case "00": 
-      instruccionDecodificada = "NOP (Ninguna operación)"; 
-      break;
-    default: 
-      instruccionDecodificada = "Instrucción desconocida";
+    case "00": instruccion = "HLT (Detener Reloj)"; break;
+    case "A5": instruccion = "INC AX (Sumar 1 a AX)"; break;
+    case "01": instruccion = "ADD AX, BX (AX <- AX + BX)"; break;
+    case "02": instruccion = "SUB AX, BX (AX <- AX - BX)"; break;
+    case "8B": instruccion = "MOV AX, BX (Copiar BX en AX)"; break;
+    case "3B": instruccion = "CMP AX, BX (Comparar y fijar Banderas)"; break;
+    default: instruccion = "Instrucción desconocida";
   }
   
-  agregarLog("Unidad de Control: Código " + ir + " interpretado como -> " + instruccionDecodificada);
-  
-  // Apagar indicador
+  agregarLog("Decode: " + ir + " -> " + instruccion);
   hoja.getRange("G7").setValue("Completado").setFontColor("#777777").setFontWeight("normal");
 }
 
-// --- FASE 3 y 4: EXECUTE & STORE (Ejecución y Almacenamiento) ---
+// --- FASE 3 y 4: EXECUTE & STORE (ALU) ---
 function ejecutarExecute() {
   var hoja = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  
-  // Encender indicador de fase Execute
   hoja.getRange("G8").setValue("ACTIVO 🟢").setFontColor("#00ff00").setFontWeight("bold");
-  agregarLog("Iniciando fase EXECUTE y ALU...");
+  hoja.getRange("G9").setValue("ACTIVO 🟢").setFontColor("#00ff00").setFontWeight("bold");
   
   var ir = getRegistro("C9");
+  var ax = parseInt(getRegistro("C10"), 16);
+  var bx = parseInt(getRegistro("C11"), 16);
+  var resultado = ax;
   
-  if (ir === "A5") { 
-    // Lógica para INC AX
-    var axStr = getRegistro("C10"); // Lee AX actual
-    var ax = parseInt(axStr, 16);
-    
-    ax = (ax + 1) % 256; // La ALU suma 1 (evitando desbordamiento)
-    
-    // FASE 4: STORE (Guardar el resultado)
-    hoja.getRange("G9").setValue("ACTIVO 🟢").setFontColor("#00ff00").setFontWeight("bold");
-    setRegistro("C10", ax); // Escribe el nuevo valor en AX
-    
-    // Actualización de Banderas (Zero Flag)
-    var zf = (ax === 0) ? "1" : "0";
-    hoja.getRange("C14").setValue(zf); 
-    
-    agregarLog("ALU: Se sumó 1 a AX. Nuevo valor = " + ax.toString(16).toUpperCase());
-    agregarLog("STORE: Banderas actualizadas (ZF=" + zf + "). Fin de instrucción.");
-  } else {
-    agregarLog("ALU: Operación ignorada o no implementada.");
+  // Lógica Matemática de la ALU
+  if (ir === "A5") { resultado = (ax + 1) % 256; } 
+  else if (ir === "01") { resultado = (ax + bx) % 256; }
+  else if (ir === "02") { resultado = (ax - bx + 256) % 256; }
+  else if (ir === "8B") { resultado = bx; }
+  
+  // FASE 4: STORE (Almacenamiento)
+  if (["A5", "01", "02", "8B"].includes(ir)) {
+    setRegistro("C10", resultado);
+    hoja.getRange("C14").setValue((resultado === 0) ? "1" : "0"); // ZF (Zero Flag)
+    agregarLog("ALU Store: Nuevo AX = " + resultado.toString(16).toUpperCase());
+  } else if (ir === "3B") { 
+    // Comparación lógica (CMP)
+    hoja.getRange("C14").setValue((ax === bx) ? "1" : "0"); // ZF
+    hoja.getRange("C16").setValue((ax < bx) ? "1" : "0");   // SF
+    agregarLog("ALU: Comparación ejecutada (ZF y SF actualizadas)");
   }
   
-  // Apagar indicadores
-  hoja.getRange("G8").setValue("Completado").setFontColor("#777777").setFontWeight("normal");
-  hoja.getRange("G9").setValue("Completado").setFontColor("#777777").setFontWeight("normal");
-  agregarLog("--- ESPERANDO SIGUIENTE CICLO ---");
+  hoja.getRange("G8:G9").setValue("Completado").setFontColor("#777777").setFontWeight("normal");
 }
 // =========================================================
 // CONTROLES DE LA CPU - ISSUE 4
